@@ -1,103 +1,204 @@
-import Image from "next/image";
+"use client"
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import toast, { Toaster } from "react-hot-toast";
+import Swal from "sweetalert2";
+import "sweetalert2/dist/sweetalert2.min.css";
+
+interface Student {
+  id?: string;
+  name: string;
+  email: string;
+  phone_number: string;
+  gender: string;
+}
+
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [students, setStudents] = useState<Student[]>([]);
+  const [form, setForm] = useState<Student>({
+    name: "",
+    email: "",
+    phone_number: "",
+    gender: "Male",
+  });
+  const [editId, setEditId] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Reset form to initial state
+  const resetForm = () => {
+    setForm({
+      name: "",
+      email: "",
+      phone_number: "",
+      gender: "Male",
+    });
+    setEditId(null);
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    console.log(form)
+
+    if(editId){
+      const {error} = await supabase.from("Students").update(form).eq("id", editId)
+      if(error){
+        toast.error(`Failed to update student ${error.message}`)
+      }else{
+        toast.success("Student updated successfully")
+        // Refresh the students list
+        fetchStudents()
+        // Reset form and edit mode
+        resetForm()
+      }
+    }else{    
+      const {error} = await supabase.from("Students").insert([form]) 
+
+      if(error){
+        toast.error(`Failed to create ${error.message}`)
+      }else{
+        toast.success("Student created successfully")
+        // Refresh the students list
+        fetchStudents()
+        // Reset form
+        resetForm()
+      }
+    }
+  }
+
+  const fetchStudents = async () => {
+    const {data, error} = await supabase.from("Students").select("*")
+
+    if(error){
+      toast.error(`Failed to fetch students ${error.message}`)
+    }else{
+      console.log(data)
+      setStudents(data || [])
+    }
+  }
+
+  function handleEditStudent(student: Student){
+    setForm(student)
+    if(student.id){
+      setEditId(student.id)
+    }
+  }
+
+     async function handleDeleteStudent(id: string){
+     const res = await Swal.fire({
+       title: 'Are you sure?',
+       text: 'You will not be able to recover this file!',
+       icon: 'warning',
+       showCancelButton: true,
+       confirmButtonColor: '#3085d6',
+       cancelButtonColor: '#d33',
+       confirmButtonText: 'Yes, delete it!'
+     })
+
+     if(res.isConfirmed){
+       const {error} = await supabase.from("Students").delete().eq("id", id)
+
+       if(error){
+         toast.error(`Failed to delete student ${error.message}`)
+       }else{
+         toast.success("Student deleted successfully")
+         // Refresh the students list
+         fetchStudents()
+         // If we were editing this student, reset the form
+         if(editId === id) {
+           resetForm()
+         }
+       }
+     }
+   }
+  useEffect(() => {
+    fetchStudents()
+  }, [])
+ 
+
+  return (
+    <div className="container my-5">
+      <Toaster />
+      <h3 className="mb-4">Students Managment</h3>
+        <div className="row">
+            {/** Left Side */}
+            <div className="col-md-4">
+              <div className="card mb-4">
+                <div className="card-body">
+                  <form onSubmit={handleSubmit}>
+                    <div className="mb-3">
+                      <label className="form-label">Name</label>
+                      <input type="text" className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">Email</label>
+                      <input type="email" className="form-control" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">Phone number</label>
+                      <input type="text" className="form-control" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">Gender</label>
+                      <select className="form-select" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div className="d-flex gap-2">
+                      <button type="submit" className="btn btn-primary flex-fill">
+                        {editId ? "Update" : "Add"}
+                      </button>
+                      {editId && (
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary"
+                          onClick={resetForm}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+        {/** Right Side */}
+              <div className="col-md-8">
+                <div className="table-responsive">
+                  <div className="table table-bordered">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Gender</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {students.map((student) => (
+                        <tr key={student.id}>
+                          <td>{student.name}</td>
+                          <td>{student.email}</td>
+                          <td>{student.phone_number}</td>
+                          <td>{student.gender}</td>
+                          <td>
+                            <button className="btn btn-warning btn-sm me-2" onClick={() => handleEditStudent(student)}>Edit</button>
+                            <button className="btn btn-danger btn-sm me-2" onClick={() => handleDeleteStudent(student?.id || "")}>Delete</button>
+                          </td>
+                        </tr>
+                        ))}
+                      </tbody>
+                  </div>
+                </div>
+              </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      
     </div>
   );
 }
